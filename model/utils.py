@@ -20,7 +20,7 @@ class SNLI():
                                        batch_size=args.batch_size,
                                        device=args.gpu)
 
-        self.build_char_vocab()
+        #self.build_char_vocab()
 
     def build_char_vocab(self):
         self.char_vocab = {}

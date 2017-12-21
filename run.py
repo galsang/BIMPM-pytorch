@@ -11,18 +11,34 @@ from model.utils import SNLI
 
 
 def train(args, data):
-    """
     model = BIMPM(args, data)
     if args.gpu > -1:
         model.cuda(args.gpu)
-    """
 
-    #parameters = filter(lambda p: p.requires_grad, model.parameters())
-    #optimizer = optim.Adadelta(lr=args.learning_rate)
-    #criterion = nn.CrossEntropyLoss()
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    optimizer = optim.Adam(parameters, lr=args.learning_rate)
+    criterion = nn.CrossEntropyLoss()
 
-    for batch in iter(data.train_iter):
-        print(batch.premise, batch.hypothesis)
+    writer = SummaryWriter(log_dir='runs/' + strftime('%H:%M:%S', gmtime()))
+
+    model.train()
+    for e in range(1):
+        loss = 0
+        for i, batch in enumerate(iter(data.train_iter)):
+            pred = model(batch.premise, batch.hypothesis)
+
+            optimizer.zero_grad()
+            batch_loss = criterion(pred, batch.label)
+            batch_loss.backward()
+            loss += batch_loss
+            optimizer.step()
+
+            print("batch loss:", batch_loss)
+
+        writer.add_scalar('loss', loss, e)
+        print("epoch:", e, "loss:", loss)
+
+    writer.close()
 
 
 def test():
@@ -45,8 +61,8 @@ def main():
     print('loading SNLI data...')
     data = SNLI(args)
 
-    setattr(args, 'char_vocab_size', len(data.char_vocab))
-    setattr(args, 'vocab_size', len(data.TEXT.vocab))
+    #setattr(args, 'char_vocab_size', len(data.char_vocab))
+    setattr(args, 'word_vocab_size', len(data.TEXT.vocab))
     setattr(args, 'class_size', len(data.LABEL.vocab))
 
     print('training start!')
