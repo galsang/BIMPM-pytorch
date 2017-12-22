@@ -20,11 +20,12 @@ class SNLI():
                                        batch_size=args.batch_size,
                                        device=args.gpu)
 
-        #self.build_char_vocab()
-
-    def build_char_vocab(self):
         self.char_vocab = {}
         self.characterized_words = []
+        if args.use_char_emb:
+            self.build_char_vocab()
+
+    def build_char_vocab(self):
         for word in self.TEXT.vocab.itos:
             chars = []
             for c in list(word):

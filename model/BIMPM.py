@@ -5,17 +5,20 @@ from torch.autograd.variable import Variable
 
 
 class BIMPM(nn.Module):
+    """
+    TODO: character embedding implementation
+    """
+
     def __init__(self, args, data):
         super(BIMPM, self).__init__()
 
         self.args = args
-        #self.d = self.args.word_dim + self.args.char_hidden_size
-        self.d = self.args.word_dim
+        self.d = self.args.word_dim + int(self.args.use_char_emb) * self.args.char_hidden_size
         self.l = self.args.num_perspective
 
         # ----- Word Representation Layer -----
 
-        #self.char_emb = nn.Embedding(args.char_vocab_size, args.char_dim)
+        self.char_emb = nn.Embedding(args.char_vocab_size + 1, args.char_dim, padding_idx=0)
 
         self.word_emb = nn.Embedding(args.word_vocab_size, args.word_dim)
         # initialize word embedding with GloVe
@@ -44,7 +47,7 @@ class BIMPM(nn.Module):
 
         for i in range(1, 9):
             setattr(self, f'mp_weight{i}',
-                    Variable(torch.rand(self.args.hidden_size, self.l)))
+                    nn.Parameter(torch.rand(self.args.hidden_size, self.l)))
 
         # ----- Aggregation Layer -----
 
@@ -58,11 +61,52 @@ class BIMPM(nn.Module):
 
         # ----- Prediction Layer -----
 
-        self.pred1 = nn.Linear(4 * self.args.hidden_size, self.args.hidden_size)
-        self.pred2 = nn.Linear(self.args.hidden_size, self.args.class_size)
+        self.pred_fc1 = nn.Linear(self.args.hidden_size * 4, self.args.hidden_size * 2)
+        self.pred_fc2 = nn.Linear(self.args.hidden_size * 2, self.args.class_size)
+
+        self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.uniform(self.char_embedding.weight.data, -0.1, 0.1)
+        # ----- Word Representation Layer -----
+        nn.init.uniform(self.char_emb.weight, -0.005, 0.005)
+        # zero vectors for padding
+        self.char_emb.weight.data[0].fill_(0)
+
+        nn.init.kaiming_normal(self.char_LSTM.weight_ih_l0)
+        nn.init.constant(self.char_LSTM.bias_ih_l0, val=0)
+        nn.init.orthogonal(self.char_LSTM.weight_hh_l0)
+        nn.init.constant(self.char_LSTM.bias_hh_l0, val=0)
+
+        # ----- Context Representation Layer -----
+
+        nn.init.kaiming_normal(self.context_LSTM.weight_ih_l0)
+        nn.init.constant(self.context_LSTM.bias_ih_l0, val=0)
+        nn.init.orthogonal(self.context_LSTM.weight_hh_l0)
+        nn.init.constant(self.context_LSTM.bias_hh_l0, val=0)
+
+        # ----- Matching Layer -----
+
+        for i in range(1, 9):
+            w = getattr(self, f'mp_weight{i}')
+            nn.init.kaiming_normal(w)
+
+        # ----- Aggregation Layer -----
+
+        nn.init.kaiming_normal(self.aggregation_LSTM.weight_ih_l0)
+        nn.init.constant(self.aggregation_LSTM.bias_ih_l0, val=0)
+        nn.init.orthogonal(self.aggregation_LSTM.weight_hh_l0)
+        nn.init.constant(self.aggregation_LSTM.bias_hh_l0, val=0)
+
+        # ----- Prediction Layer ----
+
+        nn.init.uniform(self.pred_fc1.weight, -0.005, 0.005)
+        nn.init.constant(self.pred_fc1.bias, val=0)
+
+        nn.init.uniform(self.pred_fc2.weight, -0.005, 0.005)
+        nn.init.constant(self.pred_fc2.bias, val=0)
+
+    def dropout(self, v):
+        return F.dropout(v, p=self.args.dropout, training=self.training)
 
     def forward(self, p, h):
         # ----- Word Representation Layer -----
@@ -71,11 +115,17 @@ class BIMPM(nn.Module):
         p = self.word_emb(p)
         h = self.word_emb(h)
 
+        p = self.dropout(p)
+        h = self.dropout(h)
+
         # ----- Context Representation Layer -----
 
         # (batch, seq_len, hidden_size * 2)
         con_p, _ = self.context_LSTM(p)
         con_h, _ = self.context_LSTM(h)
+
+        con_p = self.dropout(con_p)
+        con_h = self.dropout(con_h)
 
         # (batch, seq_len, hidden_size)
         con_p_forward = con_p[:, :, :self.args.hidden_size]
@@ -98,10 +148,10 @@ class BIMPM(nn.Module):
             # (batch, seq_len2, hidden_size, l)
             v2 = torch.stack([v2] * self.l, dim=3)
             # (1, 1, hidden_size, l)
-            w = w.view(1, 1, self.hidden_size, self.l)
+            w = w.view(1, 1, self.args.hidden_size, self.l)
 
             # (batch, l, seq_len, hidden_size)
-            v1, v2 = (v1 * w).permute(0, 3, 1, 2), v2 * w.permute(0, 3, 1, 2)
+            v1, v2 = (v1 * w).permute(0, 3, 1, 2), (v2 * w).permute(0, 3, 1, 2)
 
             # (batch, l, seq_len1, 1)
             v1_norm = v1.norm(p=2, dim=3, keepdim=True)
@@ -165,21 +215,25 @@ class BIMPM(nn.Module):
         # (batch, seq_len2, hidden_size) -> (batch, 1, seq_len2, hidden_size)
         # (batch, seq_len1, seq_len2) -> (batch, seq_len1, seq_len2, 1)
         # -> (batch, seq_len1, seq_len2, hidden_size)
-        att_h_forward = con_h_forward.unsqeeze(1) * att_forward.unsqeeze(3)
-        att_h_backward = con_h_backward.unsqeeze(1) * att_backward.unsqeeze(3)
+        att_h_forward = con_h_forward.unsqueeze(1) * att_forward.unsqueeze(3)
+        att_h_backward = con_h_backward.unsqueeze(1) * att_backward.unsqueeze(3)
         # (batch, seq_len1, hidden_size) -> (batch, seq_len1, 1, hidden_size)
         # (batch, seq_len1, seq_len2) -> (batch, seq_len1, seq_len2, 1)
         # -> (batch, seq_len1, seq_len2, hidden_size)
-        att_p_forward = con_p_forward.unsqeeze(2) * att_forward.unsqeeze(3)
-        att_p_backward = con_p_backward.unsqeeze(2) * att_backward.unsqeeze(3)
+        att_p_forward = con_p_forward.unsqueeze(2) * att_forward.unsqueeze(3)
+        att_p_backward = con_p_backward.unsqueeze(2) * att_backward.unsqueeze(3)
 
         # (batch, seq_len1, hidden_size) / (batch, seq_len1, 1) -> (batch, seq_len1, hidden_size)
-        att_mean_h_forward = att_h_forward.sum(dim=2) / att_forward.sum(dim=2, keepdim=True)
-        att_mean_h_backward = att_h_backward.sum(dim=2) / att_backward.sum(dim=2, keepdim=True)
+        att_mean_h_forward = att_h_forward.sum(dim=2)
+        att_mean_h_forward /= att_forward.sum(dim=2, keepdim=True) + 1e-10
+        att_mean_h_backward = att_h_backward.sum(dim=2)
+        att_mean_h_backward /= att_backward.sum(dim=2, keepdim=True) + 1e-10
 
         # (batch, seq_len2, hidden_size) / (batch, seq_len2, 1) -> (batch, seq_len2, hidden_size)
-        att_mean_p_forward = att_p_forward.sum(dim=1) / att_forward.sum(dim=1, keepdim=True).permute(0, 2, 1)
-        att_mean_p_backward = att_p_backward.sum(dim=1) / att_backward.sum(dim=1, keepdim=True).permute(0, 2, 1)
+        att_mean_p_forward = att_p_forward.sum(dim=1)
+        att_mean_p_forward /= att_forward.sum(dim=1, keepdim=True).permute(0, 2, 1) + 1e-10
+        att_mean_p_backward = att_p_backward.sum(dim=1)
+        att_mean_p_backward /= att_backward.sum(dim=1, keepdim=True).permute(0, 2, 1) + 1e-10
 
         # (batch, l, seq_len)
         mv_p_att_mean_forward = mp_matching_func(con_p_forward, att_mean_h_forward, self.mp_weight5)[:, :, :, 0]
@@ -212,20 +266,25 @@ class BIMPM(nn.Module):
              mv_h_full_backward, mv_h_max_backward, mv_h_att_mean_backward, mv_h_att_max_backward],
             dim=1).permute(0, 2, 1)
 
+        mv_p = self.dropout(mv_p)
+        mv_h = self.dropout(mv_h)
+
         # ----- Aggregation Layer -----
 
-        # (batch, seq_len, l * 8) -> (batch, hidden_size * 2)
+        # (batch, seq_len, l * 8) -> (2, batch, hidden_size)
         _, (agg_p_last, _) = self.aggregation_LSTM(mv_p)
         _, (agg_h_last, _) = self.aggregation_LSTM(mv_h)
 
+        # (2, batch, hidden_size) -> (batch, hidden_size * 2)
+        agg_p_last = agg_p_last.permute(1, 0, 2).contiguous().view(-1, self.args.hidden_size * 2)
+        agg_h_last = agg_h_last.permute(1, 0, 2).contiguous().view(-1, self.args.hidden_size * 2)
         # (batch, hidden_size * 4)
         x = torch.cat([agg_p_last, agg_h_last], dim=1)
+        x = self.dropout(x)
 
         # ----- Prediction Layer -----
 
-        x = F.relu(self.pred1(x))
-        x = self.pred2(x)
+        x = self.dropout(F.tanh(self.pred_fc1(x)))
+        x = self.pred_fc2(x)
 
         return x
-
-
