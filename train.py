@@ -4,11 +4,13 @@ import os
 import torch
 
 from torch import nn, optim
+from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 from time import gmtime, strftime
 
 from model.BIMPM import BIMPM
 from model.utils import SNLI
+from test import test
 
 
 def train(args, data):
@@ -20,7 +22,7 @@ def train(args, data):
     optimizer = optim.Adam(parameters, lr=args.learning_rate)
     criterion = nn.CrossEntropyLoss()
 
-    writer = SummaryWriter(log_dir='runs/' + strftime('%H:%M:%S', gmtime()))
+    writer = SummaryWriter(log_dir='runs/' + args.model_time)
 
     model.train()
     loss, last_epoch = 0, -1
@@ -28,15 +30,26 @@ def train(args, data):
 
     iterator = data.train_iter
     for i, batch in enumerate(iterator):
-        if iterator.epoch > args.epoch:
-            break
-
         present_epoch = int(iterator.epoch)
+        if present_epoch == args.epoch:
+            break
         if present_epoch > last_epoch:
             print('epoch:', present_epoch + 1)
         last_epoch = present_epoch
 
-        pred = model(batch.premise, batch.hypothesis)
+        kwargs = {'p': batch.premise, 'h': batch.hypothesis}
+        if args.use_char_emb:
+            char_p = Variable(torch.LongTensor(data.characterize(batch.premise)))
+            char_h = Variable(torch.LongTensor(data.characterize(batch.hypothesis)))
+
+            if args.gpu > -1:
+                char_p = char_p.cuda(args.gpu)
+                char_h = char_h.cuda(args.gpu)
+
+            kwargs['char_p'] = char_p
+            kwargs['char_h'] = char_h
+
+        pred = model(**kwargs)
 
         optimizer.zero_grad()
         batch_loss = criterion(pred, batch.label)
@@ -45,8 +58,8 @@ def train(args, data):
         optimizer.step()
 
         if (i + 1) % 500 == 0:
-            dev_loss, dev_acc = test(model, data, mode='dev')
-            test_loss, test_acc = test(model, data)
+            dev_loss, dev_acc = test(model, args, data, mode='dev')
+            test_loss, test_acc = test(model, args, data)
             c = (i + 1) // 500
 
             writer.add_scalar('loss/train', loss, c)
@@ -72,31 +85,6 @@ def train(args, data):
     return best_model
 
 
-def test(model, data, mode='test'):
-    if mode == 'dev':
-        iterator = iter(data.dev_iter)
-    else:
-        iterator = iter(data.test_iter)
-
-    criterion = nn.CrossEntropyLoss()
-    model.eval()
-    acc, loss, size = 0, 0, 0
-
-    for batch in iterator:
-        pred = model(batch.premise, batch.hypothesis)
-
-        batch_loss = criterion(pred, batch.label)
-        loss += batch_loss.data[0]
-
-        _, pred = pred.max(dim=1)
-        acc += (pred == batch.label).sum().float()
-        size += len(pred)
-
-    acc /= size
-    acc = acc.cpu().data[0]
-    return loss, acc
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-size', default=64, type=int)
@@ -108,17 +96,18 @@ def main():
     parser.add_argument('--hidden-size', default=100, type=int)
     parser.add_argument('--learning-rate', default=0.001, type=float)
     parser.add_argument('--num-perspective', default=20, type=int)
-    parser.add_argument('--use-char-emb', default=False, action='store_true')
+    parser.add_argument('--use-char-emb', default=True, action='store_true')
     parser.add_argument('--word-dim', default=300, type=int)
     args = parser.parse_args()
 
     print('loading SNLI data...')
     data = SNLI(args)
 
-    # setattr(args, 'char_vocab_size', len(data.char_vocab))
-    setattr(args, 'char_vocab_size', 10)
+    setattr(args, 'char_vocab_size', len(data.char_vocab))
     setattr(args, 'word_vocab_size', len(data.TEXT.vocab))
     setattr(args, 'class_size', len(data.LABEL.vocab))
+    setattr(args, 'max_word_len', data.max_word_len)
+    setattr(args, 'model_time', strftime('%H:%M:%S', gmtime()))
 
     print('training start!')
     best_model = train(args, data)
@@ -126,7 +115,7 @@ def main():
     if not os.path.exists('saved_models'):
         os.makedirs('saved_models')
     torch.save(best_model.state_dict(),
-               'saved_models/' + strftime('%H:%M:%S', gmtime()) + '.pt')
+               'saved_models/BIBPM_' + args.model_time + '.pt')
 
     print('training finished!')
 
