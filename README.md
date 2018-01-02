@@ -1,5 +1,5 @@
 # BIMPM-pytorch
-Re-implementation of [BIMPM](https://arxiv.org/abs/1702.03814) for [SNLI](https://nlp.stanford.edu/projects/snli/) on Pytorch
+Re-implementation of [BIMPM](https://arxiv.org/abs/1702.03814)(Bilateral Multi-Perspective Matching for Natural Language Sentences, Zhiguo Wang et al.) for [SNLI](https://nlp.stanford.edu/projects/snli/) on Pytorch
 
 ## Results
 
