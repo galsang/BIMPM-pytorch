@@ -73,6 +73,11 @@ class BIMPM(nn.Module):
         nn.init.orthogonal(self.context_LSTM.weight_hh_l0)
         nn.init.constant(self.context_LSTM.bias_hh_l0, val=0)
 
+        nn.init.kaiming_normal(self.context_LSTM.weight_ih_l0_reverse)
+        nn.init.constant(self.context_LSTM.bias_ih_l0_reverse, val=0)
+        nn.init.orthogonal(self.context_LSTM.weight_hh_l0_reverse)
+        nn.init.constant(self.context_LSTM.bias_hh_l0_reverse, val=0)
+
         # ----- Matching Layer -----
         for i in range(1, 9):
             w = getattr(self, f'mp_weight{i}')
@@ -83,6 +88,11 @@ class BIMPM(nn.Module):
         nn.init.constant(self.aggregation_LSTM.bias_ih_l0, val=0)
         nn.init.orthogonal(self.aggregation_LSTM.weight_hh_l0)
         nn.init.constant(self.aggregation_LSTM.bias_hh_l0, val=0)
+
+        nn.init.kaiming_normal(self.aggregation_LSTM.weight_ih_l0_reverse)
+        nn.init.constant(self.aggregation_LSTM.bias_ih_l0_reverse, val=0)
+        nn.init.orthogonal(self.aggregation_LSTM.weight_hh_l0_reverse)
+        nn.init.constant(self.aggregation_LSTM.bias_hh_l0_reverse, val=0)
 
         # ----- Prediction Layer ----
         nn.init.uniform(self.pred_fc1.weight, -0.005, 0.005)
@@ -163,7 +173,7 @@ class BIMPM(nn.Module):
 
             # (batch, l, seq_len1, seq_len2)
             m = torch.matmul(v1, v2.permute(0, 1, 3, 2))
-            m /= v1_norm * v2_norm
+            m /= v1_norm * v2_norm + 1e-10
 
             return m
 
@@ -181,7 +191,7 @@ class BIMPM(nn.Module):
 
             # (batch, seq_len1, seq_len2)
             a = torch.bmm(v1, v2.permute(0, 2, 1))
-            a /= v1_norm * v2_norm
+            a /= v1_norm * v2_norm + 1e-10
 
             return a
 
