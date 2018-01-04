@@ -96,7 +96,7 @@ def main():
     parser.add_argument('--hidden-size', default=100, type=int)
     parser.add_argument('--learning-rate', default=0.001, type=float)
     parser.add_argument('--num-perspective', default=20, type=int)
-    parser.add_argument('--use-char-emb', default=True, action='store_true')
+    parser.add_argument('--use-char-emb', default=False, action='store_true')
     parser.add_argument('--word-dim', default=300, type=int)
     args = parser.parse_args()
 
