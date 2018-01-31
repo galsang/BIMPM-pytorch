@@ -1,5 +1,5 @@
 # BIMPM-pytorch
-Re-implementation of [BIMPM](https://arxiv.org/abs/1702.03814)(Bilateral Multi-Perspective Matching for Natural Language Sentences, Zhiguo Wang et al.) on Pytorch
+Re-implementation of [BIMPM](https://arxiv.org/abs/1702.03814)(Bilateral Multi-Perspective Matching for Natural Language Sentences, Zhiguo Wang et al., IJCAI 2017) on Pytorch
 
 ## Results
 
@@ -7,7 +7,7 @@ Dataset: [SNLI](https://nlp.stanford.edu/projects/snli/)
 
 | Model        |  ACC(%)   | 
 |--------------|:----------:|
-| **Re-implementation (with default parameters)** | **86.4** |  
+| **Re-implementation (with default parameters) (w/o character embedding)** | **86.5** |  
 | Baseline from the paper (Single BiMPM)          |  86.9    |    
 
 Dataset: Quora
