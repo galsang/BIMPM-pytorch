@@ -10,12 +10,12 @@ Dataset: [SNLI](https://nlp.stanford.edu/projects/snli/)
 | **Re-implementation** |			 **86.5** |  
 | Baseline from the paper (Single BiMPM)	|  86.9    |    
 
-Dataset: Quora
+Dataset: [Quora](https://drive.google.com/file/d/0B0PlTAo--BnaQWlsZl9FZ3l1c28/view)(provided by the authors)
 
 | Model        |  ACC(%)   | 
 |--------------|:----------:|
-| **Re-implementation (with default parameters)** | **87.0** |  
-| Baseline from the paper (Single BiMPM)          |  88.17   |
+| **Re-implementation** 			| **87.0** |  
+| Baseline from the paper (Single BiMPM)     	|  88.17   |
 
 
 ## Development Environment
