@@ -7,8 +7,8 @@ Dataset: [SNLI](https://nlp.stanford.edu/projects/snli/)
 
 | Model        |  ACC(%)   | 
 |--------------|:----------:|
-| **Re-implementation (with default parameters) (w/o character embedding)** | **86.5** |  
-| Baseline from the paper (Single BiMPM)          |  86.9    |    
+| **Re-implementation** |			 **86.5** |  
+| Baseline from the paper (Single BiMPM)	|  86.9    |    
 
 Dataset: Quora
 
