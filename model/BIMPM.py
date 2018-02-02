@@ -118,31 +118,33 @@ class BIMPM(nn.Module):
             """
             seq_len = v1.size(1)
 
-            if seq_len > 50:  # Trick for large memory requirement
-                if len(v2.size()) == 2:
-                    v2 = torch.stack([v2] * seq_len, dim=1)
+            # Trick for large memory requirement
+            """
+            if len(v2.size()) == 2:
+                v2 = torch.stack([v2] * seq_len, dim=1)
 
-                m = []
-                for i in range(self.l):
-                    # v1: (batch, seq_len, hidden_size)
-                    # v2: (batch, seq_len, hidden_size)
-                    # w: (1, 1, hidden_size)
-                    # -> (batch, seq_len)
-                    m.append(F.cosine_similarity(w[i].view(1, 1, -1) * v1, w[i].view(1, 1, -1) * v2, dim=2))
+            m = []
+            for i in range(self.l):
+                # v1: (batch, seq_len, hidden_size)
+                # v2: (batch, seq_len, hidden_size)
+                # w: (1, 1, hidden_size)
+                # -> (batch, seq_len)
+                m.append(F.cosine_similarity(w[i].view(1, 1, -1) * v1, w[i].view(1, 1, -1) * v2, dim=2))
 
-                # list of (batch, seq_len) -> (batch, seq_len, l)
-                m = torch.stack(m, dim=2)
+            # list of (batch, seq_len) -> (batch, seq_len, l)
+            m = torch.stack(m, dim=2)
+            """
+
+            # (1, 1, hidden_size, l)
+            w = w.transpose(1, 0).unsqueeze(0).unsqueeze(0)
+            # (batch, seq_len, hidden_size, l)
+            v1 = w * torch.stack([v1] * self.l, dim=3)
+            if len(v2.size()) == 3:
+                v2 = w * torch.stack([v2] * self.l, dim=3)
             else:
-                # (1, 1, hidden_size, l)
-                w = w.transpose(1, 0).unsqueeze(0).unsqueeze(0)
-                # (batch, seq_len, hidden_size, l)
-                v1 = w * torch.stack([v1] * self.l, dim=3)
-                if len(v2.size()) == 3:
-                    v2 = w * torch.stack([v2] * self.l, dim=3)
-                else:
-                    v2 = w * torch.stack([torch.stack([v2] * seq_len, dim=1)] * self.l, dim=3)
+                v2 = w * torch.stack([torch.stack([v2] * seq_len, dim=1)] * self.l, dim=3)
 
-                m = F.cosine_similarity(v1, v2, dim=2)
+            m = F.cosine_similarity(v1, v2, dim=2)
 
             return m
 
@@ -153,42 +155,43 @@ class BIMPM(nn.Module):
             :param w: (l, hidden_size)
             :return: (batch, l, seq_len1, seq_len2)
             """
-            seq_len = max(v1.size(1), v2.size(2))
 
-            if seq_len > 50:  # Trick for large memory requirement
-                m = []
-                for i in range(self.l):
-                    # (1, 1, hidden_size)
-                    w_i = w[i].view(1, 1, -1)
-                    # (batch, seq_len1, hidden_size), (batch, seq_len2, hidden_size)
-                    v1, v2 = w_i * v1, w_i * v2
-                    # (batch, seq_len, hidden_size->1)
-                    v1_norm = v1.norm(p=2, dim=2, keepdim=True)
-                    v2_norm = v2.norm(p=2, dim=2, keepdim=True)
+            # Trick for large memory requirement
+            """
+            m = []
+            for i in range(self.l):
+                # (1, 1, hidden_size)
+                w_i = w[i].view(1, 1, -1)
+                # (batch, seq_len1, hidden_size), (batch, seq_len2, hidden_size)
+                v1, v2 = w_i * v1, w_i * v2
+                # (batch, seq_len, hidden_size->1)
+                v1_norm = v1.norm(p=2, dim=2, keepdim=True)
+                v2_norm = v2.norm(p=2, dim=2, keepdim=True)
 
-                    # (batch, seq_len1, seq_len2)
-                    n = torch.matmul(v1, v2.permute(0, 2, 1))
-                    d = v1_norm * v2_norm.permute(0, 2, 1)
+                # (batch, seq_len1, seq_len2)
+                n = torch.matmul(v1, v2.permute(0, 2, 1))
+                d = v1_norm * v2_norm.permute(0, 2, 1)
 
-                    m.append(div_with_small_value(n, d))
+                m.append(div_with_small_value(n, d))
 
-                # list of (batch, seq_len1, seq_len2) -> (batch, seq_len1, seq_len2, l)
-                m = torch.stack(m, dim=3)
-            else:
-                # (1, l, 1, hidden_size)
-                w = w.unsqueeze(0).unsqueeze(2)
-                # (batch, l, seq_len, hidden_size)
-                v1, v2 = w * torch.stack([v1] * self.l, dim=1), w * torch.stack([v2] * self.l, dim=1)
-                # (batch, l, seq_len, hidden_size->1)
-                v1_norm = v1.norm(p=2, dim=3, keepdim=True)
-                v2_norm = v2.norm(p=2, dim=3, keepdim=True)
+            # list of (batch, seq_len1, seq_len2) -> (batch, seq_len1, seq_len2, l)
+            m = torch.stack(m, dim=3)
+            """
 
-                # (batch, l, seq_len1, seq_len2)
-                n = torch.matmul(v1, v2.transpose(2, 3))
-                d = v1_norm * v2_norm.transpose(2, 3)
+            # (1, l, 1, hidden_size)
+            w = w.unsqueeze(0).unsqueeze(2)
+            # (batch, l, seq_len, hidden_size)
+            v1, v2 = w * torch.stack([v1] * self.l, dim=1), w * torch.stack([v2] * self.l, dim=1)
+            # (batch, l, seq_len, hidden_size->1)
+            v1_norm = v1.norm(p=2, dim=3, keepdim=True)
+            v2_norm = v2.norm(p=2, dim=3, keepdim=True)
 
-                # (batch, seq_len1, seq_len2, l)
-                m = div_with_small_value(n, d).permute(0, 2, 3, 1)
+            # (batch, l, seq_len1, seq_len2)
+            n = torch.matmul(v1, v2.transpose(2, 3))
+            d = v1_norm * v2_norm.transpose(2, 3)
+
+            # (batch, seq_len1, seq_len2, l)
+            m = div_with_small_value(n, d).permute(0, 2, 3, 1)
 
             return m
 
@@ -217,6 +220,7 @@ class BIMPM(nn.Module):
 
         # ----- Word Representation Layer -----
         # (batch, seq_len) -> (batch, seq_len, word_dim)
+
         p = self.word_emb(kwargs['p'])
         h = self.word_emb(kwargs['h'])
 

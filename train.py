@@ -43,6 +43,14 @@ def train(args, data):
             s1, s2 = 'q1', 'q2'
 
         s1, s2 = getattr(batch, s1), getattr(batch, s2)
+
+        # limit the lengths of input sentences up to max_sent_len
+        if args.max_sent_len >= 0:
+            if s1.size()[1] > args.max_sent_len:
+                s1 = s1[:, :args.max_sent_len]
+            if s2.size()[1] > args.max_sent_len:
+                s2 = s2[:, :args.max_sent_len]
+
         kwargs = {'p': s1, 'h': s2}
 
         if args.use_char_emb:
@@ -103,6 +111,8 @@ def main():
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--hidden-size', default=100, type=int)
     parser.add_argument('--learning-rate', default=0.001, type=float)
+    parser.add_argument('--max-sent-len', default=-1, type=int,
+                        help='max length of input sentences model can accept, if -1, it accepts any length')
     parser.add_argument('--num-perspective', default=20, type=int)
     parser.add_argument('--print-freq', default=500, type=int)
     parser.add_argument('--use-char-emb', default=False, action='store_true')

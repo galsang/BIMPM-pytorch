@@ -53,7 +53,7 @@ class SNLI():
 class Quora():
     def __init__(self, args):
         self.RAW = data.RawField()
-        self.TEXT = data.Field(batch_first=True, tokenize=lambda x: x.split())
+        self.TEXT = data.Field(batch_first=True)
         self.LABEL = data.Field(sequential=False, unk_token=None)
 
         self.train, self.dev, self.test = data.TabularDataset.splits(
