@@ -14,7 +14,7 @@ Dataset: [Quora](https://drive.google.com/file/d/0B0PlTAo--BnaQWlsZl9FZ3l1c28/vi
 
 | Model        |  ACC(%)   | 
 |--------------|:----------:|
-| **Re-implementation** 			| **87.1** |  
+| **Re-implementation** 			| **87.3** |  
 | Baseline from the paper (Single BiMPM)     	|  88.17   |
 
 Note: I could not observe much gain from character embeddings. The implementation for the character embedding might be too naive to improve the performance.
