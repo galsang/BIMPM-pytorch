@@ -105,7 +105,7 @@ class BIMPM(nn.Module):
         nn.init.constant(self.pred_fc2.bias, val=0)
 
     def dropout(self, v):
-        return F.dropout(v, p=self.args.dropout, training=self.training)
+        return F.dropout(v, p=self.args.dropout, training=self.args.is_training)
 
     def forward(self, **kwargs):
         # ----- Matching Layer -----

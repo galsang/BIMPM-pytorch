@@ -128,6 +128,7 @@ def main():
     else:
         raise NotImplementedError('only SNLI or Quora data is possible')
 
+    setattr(args, 'is_training', True)
     setattr(args, 'char_vocab_size', len(data.char_vocab))
     setattr(args, 'word_vocab_size', len(data.TEXT.vocab))
     setattr(args, 'class_size', len(data.LABEL.vocab))

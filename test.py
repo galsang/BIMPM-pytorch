@@ -88,6 +88,7 @@ if __name__ == '__main__':
         print('loading Quora data...')
         data = Quora(args)
 
+    setattr(args, 'is_training', False)
     setattr(args, 'char_vocab_size', len(data.char_vocab))
     setattr(args, 'word_vocab_size', len(data.TEXT.vocab))
     setattr(args, 'class_size', len(data.LABEL.vocab))
